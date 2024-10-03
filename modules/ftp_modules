@@ -1,0 +1,89 @@
+<?php
+class FTP {
+    private $ftp_host;
+    private $ftp_connect_session;
+    private $ftp_login_session;
+
+    public function __construct($iphost)
+    {
+        $this->ftp_host = $iphost;
+        $ftp_session = ftp_connect($this->ftp_host,21) or die("cannot connect to host.<br>");
+        return $this->ftp_connect_session = $ftp_session;
+    }
+
+    public function conn_ftp($user,$pass) {
+        try{
+            $login_session = ftp_login($this->ftp_connect_session,$user,$pass);
+            if($login_session) {
+                // echo "Success";
+            }else {
+                throw new Exception("Could't not connect user<br>");
+            }
+        }catch(Exception $e) {
+            echo "FTP Failed: " .$e;
+        }
+    }
+
+    public function upload_ftp($path,$fileName) {
+        {
+            try {
+                // ตรวจสอบว่าการเชื่อมต่อสำเร็จหรือไม่
+                if (!$this->ftp_connect_session) {
+                    throw new Exception("FTP connection is not established.<br>");
+                }
+        
+                // ใช้ passive mode (ถ้าจำเป็น)
+                ftp_pasv($this->ftp_connect_session, true);
+
+                $quota = 5 *1024*1024;
+
+                $fileSize = filesize($path);
+                $files = ftp_nlist($this->ftp_connect_session,"ftp/");
+                $totalsize = 0;
+
+                foreach ($files as $file) {
+                    $size = ftp_size($this->ftp_connect_session,$file);
+                    if ($size != -1) {
+                        $totalsize += $size;
+                    }
+                }
+
+                if(($totalsize + $fileSize) > $quota) {
+                    throw new Exception("Storage is full. You cannot uploade this file.<br>");
+                }elseif (ftp_put($this->ftp_connect_session, "ftp/" . $fileName, $path)) {
+                    // ลบไฟล์ต้นทางหลังจากอัพโหลดสำเร็จ
+                    unlink($path);
+                    echo "Upload file success.<br>";
+                } else {
+                    ftp_delete($this->ftp_connect_session,"ftp/".$fileName);
+                    unlink($path);
+                    throw new Exception("Upload file failed. Or storage is full.<br>");
+                }
+            } catch (Exception $e) {
+                // หากการอัพโหลดล้มเหลว ให้แสดงข้อผิดพลาด
+                echo "Error: " . $e->getMessage();
+            }
+        }
+    }
+
+    public function totalftpsize() {
+        $files = ftp_nlist($this->ftp_connect_session,"ftp/");
+
+        $totalsize = 0;
+
+        if(!empty($files)) {
+        foreach ($files as $file) {
+            $size = ftp_size($this->ftp_connect_session,$file);
+            if ($size != -1) {
+                $totalsize += $size;
+            }
+        }
+    }
+        return round($totalsize/1024/1024,2);
+    }
+
+    public function closeFTPconnect() {
+        ftp_close($this->ftp_connect_session);
+    }
+}
+?>
